@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { Link } from "react-router-dom";
-import { CheckCircle2, ChevronRight, CalendarCheck } from "lucide-react";
+import { CheckCircle2, ChevronRight, CalendarCheck, Trash2, X } from "lucide-react";
 import { colors, shadows } from "../theme";
 import { api } from "../services/api";
 
@@ -95,6 +95,59 @@ const HabitChevron = styled.div`
   color: ${colors.subtext};
 `;
 
+const DeleteButton = styled.button`
+  border: 1px solid ${colors.border};
+  background: #ffecec;
+  color: #d14343;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: ${shadows.soft};
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+`;
+
+const ModalCard = styled.div`
+  background: ${colors.surface};
+  border-radius: 16px;
+  padding: 20px;
+  width: min(420px, 90vw);
+  box-shadow: ${shadows.card};
+  border: 1px solid ${colors.border};
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+`;
+
 const Title = styled.h1`
   margin: 0;
 `;
@@ -108,6 +161,8 @@ const Dashboard = () => {
   const [habits, setHabits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchHabits = async () => {
@@ -171,11 +226,67 @@ const Dashboard = () => {
               </HabitMeta>
             </div>
             <HabitChevron>
+              <DeleteButton
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelected(habit);
+                }}
+              >
+                <Trash2 size={16} />
+                Delete
+              </DeleteButton>
               <ChevronRight size={20} />
             </HabitChevron>
           </HabitCard>
         ))}
       </HabitList>
+
+      {selected && (
+        <ModalOverlay>
+          <ModalCard>
+            <ModalHeader>
+              <ModalTitle>Delete habit?</ModalTitle>
+              <DeleteButton
+                onClick={() => {
+                  setSelected(null);
+                }}
+              >
+                <X size={16} />
+                Close
+              </DeleteButton>
+            </ModalHeader>
+            <Subtitle>
+              You are about to delete "{selected.title}". This cannot be undone. Continue?
+            </Subtitle>
+            <ModalActions>
+              <DeleteButton
+                onClick={() => {
+                  setSelected(null);
+                }}
+              >
+                Cancel
+              </DeleteButton>
+              <DeleteButton
+                onClick={async () => {
+                  if (!selected) return;
+                  setDeleting(true);
+                  try {
+                    await api.deleteHabit(selected.id);
+                    setHabits((prev) => prev.filter((h) => h.id !== selected.id));
+                  } finally {
+                    setDeleting(false);
+                    setSelected(null);
+                  }
+                }}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Confirm delete"}
+              </DeleteButton>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarDays, Check } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, CalendarDays, Check, Trash2, X } from "lucide-react";
 import { colors, shadows } from "../theme";
 import { api } from "../services/api";
 
@@ -80,6 +80,19 @@ const Primary = styled.button`
   margin-top: 6px;
 `;
 
+const Secondary = styled.button`
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid ${colors.border};
+  background: ${colors.surface};
+  color: ${colors.text};
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: ${shadows.soft};
+  margin-top: 6px;
+`;
+
 const HistoryWrapper = styled.div`
   margin-top: 28px;
 `;
@@ -113,18 +126,108 @@ const DayCell = styled.div`
   font-weight: 700;
 `;
 
+const Input = styled.input`
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid ${colors.border};
+  background: ${colors.surface};
+  font-size: 15px;
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid ${colors.border};
+  background: ${colors.surface};
+  font-size: 15px;
+  min-height: 110px;
+  resize: vertical;
+`;
+
+const ActionsRow = styled.div`
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+const Danger = styled.button`
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid ${colors.border};
+  background: #ffecec;
+  color: #d14343;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: ${shadows.soft};
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+`;
+
+const ModalCard = styled.div`
+  background: ${colors.surface};
+  border-radius: 16px;
+  padding: 20px;
+  width: min(420px, 90vw);
+  box-shadow: ${shadows.card};
+  border: 1px solid ${colors.border};
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+`;
+
 const HabitDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [habit, setHabit] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [formTitle, setFormTitle] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchHabit = async () => {
       try {
         const data = await api.getHabit(id);
         setHabit(data);
+        setFormTitle(data.title);
+        setFormDesc(data.description || "");
         const filled = Array.from({ length: 21 }, (_, i) => i < (data.history_count || 0));
         setHistory(filled);
       } catch (err) {
@@ -137,13 +240,55 @@ const HabitDetail = () => {
   }, [id]);
 
   const handleComplete = async () => {
+    if (!habit) return;
+    const optimistic = { ...habit, history_count: (habit.history_count || 0) + 1 };
+    setHabit(optimistic);
+    setHistory(Array.from({ length: 21 }, (_, i) => i < optimistic.history_count));
     try {
       const updated = await api.completeHabit(id);
       setHabit(updated);
-      const filled = Array.from({ length: 21 }, (_, i) => i < (updated.history_count || 0));
-      setHistory(filled);
+      setHistory(
+        Array.from({ length: 21 }, (_, i) => i < (updated.history_count || 0))
+      );
     } catch (err) {
-      setError("Could not mark as completed");
+      window.location.reload();
+    }
+  };
+
+  const handleSave = async () => {
+    if (!habit) return;
+    setSaving(true);
+    const previous = habit;
+    const optimistic = { ...habit, title: formTitle, description: formDesc };
+    setHabit(optimistic);
+    try {
+      const updated = await api.updateHabit(id, {
+        title: formTitle,
+        description: formDesc,
+      });
+      setHabit(updated);
+      setEditing(false);
+    } catch (err) {
+      setHabit(previous);
+      setFormTitle(previous.title);
+      setFormDesc(previous.description || "");
+      setError("Could not update habit");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!habit) return;
+    setDeleting(true);
+    try {
+      await api.deleteHabit(habit.id);
+      navigate("/");
+    } catch (err) {
+      window.location.reload();
+    } finally {
+      setDeleting(false);
+      setShowDelete(false);
     }
   };
 
@@ -160,8 +305,25 @@ const HabitDetail = () => {
 
       <Card>
         <Pill>{habit.frequency}</Pill>
-        <Title>{habit.title}</Title>
-        <Subtitle>{habit.description}</Subtitle>
+        {editing ? (
+          <>
+            <Input
+              value={formTitle}
+              onChange={(e) => setFormTitle(e.target.value)}
+              placeholder="Habit title"
+            />
+            <TextArea
+              value={formDesc}
+              onChange={(e) => setFormDesc(e.target.value)}
+              placeholder="Description"
+            />
+          </>
+        ) : (
+          <>
+            <Title>{habit.title}</Title>
+            <Subtitle>{habit.description}</Subtitle>
+          </>
+        )}
 
         <StatGrid>
           <Stat>
@@ -174,7 +336,20 @@ const HabitDetail = () => {
           </Stat>
         </StatGrid>
 
-        <Primary onClick={handleComplete}>Mark as Completed Today</Primary>
+        <ActionsRow>
+          <Primary onClick={handleComplete}>Mark as Completed Today</Primary>
+          {editing ? (
+            <Secondary onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save changes"}
+            </Secondary>
+          ) : (
+            <Secondary onClick={() => setEditing(true)}>Edit habit</Secondary>
+          )}
+          <Danger onClick={() => setShowDelete(true)}>
+            <Trash2 size={16} />
+            Delete
+          </Danger>
+        </ActionsRow>
       </Card>
 
       <HistoryWrapper>
@@ -190,6 +365,29 @@ const HabitDetail = () => {
           ))}
         </HistoryGrid>
       </HistoryWrapper>
+
+      {showDelete && (
+        <ModalOverlay>
+          <ModalCard>
+            <ModalHeader>
+              <ModalTitle>Delete habit?</ModalTitle>
+              <Secondary onClick={() => setShowDelete(false)}>
+                <X size={16} />
+              </Secondary>
+            </ModalHeader>
+            <Subtitle>
+              This action will remove the habit from your dashboard. Do you want to
+              continue?
+            </Subtitle>
+            <ModalActions>
+              <Secondary onClick={() => setShowDelete(false)}>Cancel</Secondary>
+              <Danger onClick={handleDelete} disabled={deleting}>
+                {deleting ? "Deleting..." : "Confirm delete"}
+              </Danger>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
     </div>
   );
 };
