@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRESQL_ADDON_HOST: bguwzqlbpce8pix5wszq-postgresql.services.clever-cloud.com
+      POSTGRESQL_ADDON_DB: bguwzqlbpce8pix5wszq
+      POSTGRESQL_ADDON_USER: uyeqnqg5dvaswtnfurjf
+      POSTGRESQL_ADDON_PORT: "5432"
+      POSTGRESQL_ADDON_PASSWORD: 50tzIbs4wT53kW31Ui8pzlTu4eMHCm
+      POSTGRESQL_ADDON_URI: postgresql://uyeqnqg5dvaswtnfurjf:50tzIbs4wT53kW31Ui8pzlTu4eMHCm@bguwzqlbpce8pix5wszq-postgresql.services.clever-cloud.com:5432/bguwzqlbpce8pix5wszq
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
