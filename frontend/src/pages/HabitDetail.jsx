@@ -225,7 +225,7 @@ const HabitDetail = () => {
     const fetchHabit = async () => {
       try {
         const data = await api.getHabit(id);
-        setHabit(data);
+        setHabit({ ...data, today_completions: data.today_completions || 0 });
         setFormTitle(data.title);
         setFormDesc(data.description || "");
         const filled = Array.from({ length: 21 }, (_, i) => i < (data.history_count || 0));
@@ -241,7 +241,11 @@ const HabitDetail = () => {
 
   const handleComplete = async () => {
     if (!habit) return;
-    const optimistic = { ...habit, history_count: (habit.history_count || 0) + 1 };
+    const optimistic = {
+      ...habit,
+      history_count: (habit.history_count || 0) + 1,
+      today_completions: (habit.today_completions || 0) + 1,
+    };
     setHabit(optimistic);
     setHistory(Array.from({ length: 21 }, (_, i) => i < optimistic.history_count));
     try {

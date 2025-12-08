@@ -1,17 +1,13 @@
 import uuid
+from datetime import date
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from schemas import HabitCreate, HabitResponse, HabitUpdate
-from services import (
-    complete_habit,
-    create_habit,
-    delete_habit,
-    get_habit_or_404,
-    list_habits,
-    update_habit,
-)
+from services import complete_habit, create_habit, delete_habit, get_habit_or_404, list_habits, update_habit
+from models import HabitDailyProgress
 
 
 router = APIRouter(prefix="/habits", tags=["Habits"])
@@ -28,7 +24,16 @@ async def list_habits_route(
 async def get_habit_route(
     habit_id: uuid.UUID, session: AsyncSession = Depends(get_session)
 ) -> HabitResponse:
-    return await get_habit_or_404(session, habit_id)
+    habit = await get_habit_or_404(session, habit_id)
+    # Attach today's completions for detail view
+    today_count = await session.execute(
+        select(HabitDailyProgress.count).where(
+            HabitDailyProgress.habit_id == habit_id, HabitDailyProgress.day == date.today()
+        )
+    )
+    row = today_count.first()
+    setattr(habit, "today_completions", row[0] if row else 0)
+    return habit
 
 
 @router.post("", response_model=HabitResponse, status_code=201)

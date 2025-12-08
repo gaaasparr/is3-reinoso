@@ -1,12 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Sequence
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Habit
+from models import Habit, HabitDailyProgress
 from schemas import HabitCreate, HabitUpdate
 
 
@@ -18,10 +18,22 @@ async def get_habit_or_404(session: AsyncSession, habit_id: uuid.UUID) -> Habit:
 
 
 async def list_habits(session: AsyncSession) -> Sequence[Habit]:
-    result = await session.execute(
+    habits_result = await session.execute(
         select(Habit).where(Habit.deleted_at.is_(None)).order_by(Habit.created_at.desc())
     )
-    return result.scalars().all()
+    habits = habits_result.scalars().all()
+
+    today = date.today()
+    progress_result = await session.execute(
+        select(HabitDailyProgress.habit_id, HabitDailyProgress.count).where(
+            HabitDailyProgress.day == today
+        )
+    )
+    progress_map = {row.habit_id: row.count for row in progress_result.all()}
+
+    for h in habits:
+        setattr(h, "today_completions", progress_map.get(h.id, 0))
+    return habits
 
 
 async def create_habit(session: AsyncSession, payload: HabitCreate) -> Habit:
@@ -55,8 +67,23 @@ async def complete_habit(session: AsyncSession, habit_id: uuid.UUID) -> Habit:
     habit = await get_habit_or_404(session, habit_id)
     habit.history_count += 1
     habit.updated_at = datetime.utcnow()
+
+    today = date.today()
+    progress_result = await session.execute(
+        select(HabitDailyProgress).where(
+            HabitDailyProgress.habit_id == habit_id, HabitDailyProgress.day == today
+        )
+    )
+    progress = progress_result.scalars().first()
+    if progress:
+        progress.count += 1
+    else:
+        progress = HabitDailyProgress(habit_id=habit_id, day=today, count=1)
+        session.add(progress)
+
     await session.commit()
     await session.refresh(habit)
+    setattr(habit, "today_completions", progress.count)
     return habit
 
 

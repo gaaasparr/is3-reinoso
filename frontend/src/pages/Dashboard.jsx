@@ -181,7 +181,8 @@ const Dashboard = () => {
   const stats = useMemo(() => {
     const total = habits.length;
     const completions = habits.reduce((acc, h) => acc + (h.history_count || 0), 0);
-    return { total, completions };
+    const today = habits.reduce((acc, h) => acc + (h.today_completions || 0), 0);
+    return { total, completions, today };
   }, [habits]);
 
   return (
@@ -197,7 +198,7 @@ const Dashboard = () => {
         </StatCard>
         <StatCard tone="mint">
           <StatLabel>Completed Today</StatLabel>
-          <StatValue>-</StatValue>
+          <StatValue>{stats.today}</StatValue>
           <StatNote>Keep going!</StatNote>
         </StatCard>
         <StatCard tone="yellow">

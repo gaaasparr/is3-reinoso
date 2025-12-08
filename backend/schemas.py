@@ -30,6 +30,7 @@ class HabitResponse(BaseModel):
     frequency: Frequency
     status: Status
     history_count: int
+    today_completions: int = 0
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime]

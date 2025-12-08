@@ -1,9 +1,9 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum as SAEnum, Integer, String, Text
+from sqlalchemy import Date, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -51,3 +51,17 @@ class Habit(Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class HabitDailyProgress(Base):
+    __tablename__ = "habit_daily_progress"
+    __table_args__ = (UniqueConstraint("habit_id", "day", name="uq_habit_day"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    habit_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("habits.id"), nullable=False, index=True
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
